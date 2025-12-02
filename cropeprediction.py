@@ -1,87 +1,104 @@
-# =======================
-# DIABETES PREDICTION + DIET RECOMMENDATION
-# With Gradio Front-End (Run in Google Colab)
-# =======================
+!pip install -q gradio pandas scikit-learn
 
-# 📌 Install Libraries (Works in Colab)
-!pip install gradio pandas scikit-learn
-
-# 📌 Import Libraries
-import gradio as gr
 import pandas as pd
+import gradio as gr
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
+from sklearn.ensemble import RandomForestClassifier
 
-# 📌 Load Dataset (Auto from URL)
-url = "https://raw.githubusercontent.com/plotly/datasets/master/diabetes.csv"
-data = pd.read_csv(url)
+# ----------------------------------------------------------
+# 📌 Load Dataset (WORKING URL)
+# ----------------------------------------------------------
+url = "https://raw.githubusercontent.com/arzzahid66/Optimizing_Agricultural_Production/master/Crop_recommendation.csv"
+df = pd.read_csv(url)
 
+print("Dataset Loaded Successfully ✅")
+print(df.head())
+
+# ----------------------------------------------------------
 # 📌 Split Data
-X = data.drop("Outcome", axis=1)
-y = data["Outcome"]
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# ----------------------------------------------------------
+X = df[['N','P','K','temperature','humidity','ph','rainfall']]
+y = df['label']
 
-# 📌 Train Model
-model = LogisticRegression(max_iter=1200)
-model.fit(X_train, y_train)
-
-# 📌 Accuracy
-accuracy = accuracy_score(y_test, model.predict(X_test))
-print("Model Trained 💉 Diabetes Accuracy:", round(accuracy * 100, 2), "%")
-
-# ============================
-# 🥗 Recommendation System
-# ============================
-def recommendations(pred, glucose, bmi):
-    if pred == 1:  # Diabetes Positive
-        rec = "⚠ High Diabetes Risk\n\n"
-
-        # Diet advice
-        if glucose > 130:
-            rec += "🍽 Eat low sugar foods: Oats, Brown Rice, Green Vegetables, Nuts.\n"
-        if bmi > 28:
-            rec += "🏃‍♂ 30 min daily exercise required (Walking + Yoga).\n"
-        rec += "🥗 Avoid: White rice, sweets, cold drinks, deep fried food."
-
-    else:  # Negative
-        rec = "✔ You are Safe from Diabetes 😄\n\n"
-        rec += "🌿 Continue healthy lifestyle.\n"
-        rec += "💧 Drink 2-3L water daily.\n🥗 Eat balanced diet + do light exercise."
-
-    return rec
-
-# ============================
-# 🔮 Prediction Function
-# ============================
-def predict_diabetes(Pregnancies, Glucose, BloodPressure, SkinThickness, Insulin, BMI, DiabetesPedigreeFunction, Age):
-
-    user_data = [[Pregnancies, Glucose, BloodPressure, SkinThickness, Insulin, BMI, DiabetesPedigreeFunction, Age]]
-    pred = model.predict(user_data)[0]
-
-    risk = "Diabetes Detected" if pred == 1 else "No Diabetes Risk"
-    rec = recommendations(pred, Glucose, BMI)
-
-    return f"🧪 Prediction: {risk}\n\n📌 Suggestions:\n{rec}"
-
-# ============================
-# 💻 GRADIO UI
-# ============================
-interface = gr.Interface(
-    fn=predict_diabetes,
-    inputs=[
-        gr.Number(label="Pregnancies"),
-        gr.Number(label="Glucose Level"),
-        gr.Number(label="Blood Pressure"),
-        gr.Number(label="Skin Thickness"),
-        gr.Number(label="Insulin"),
-        gr.Number(label="BMI"),
-        gr.Number(label="Diabetes Pedigree Function"),
-        gr.Number(label="Age"),
-    ],
-    outputs="text",
-    title="🩺 Diabetes Prediction + Diet Planner",
-    description="Enter medical values to predict diabetes risk and get diet recommendations."
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
 )
 
-interface.launch(debug=True)
+# ----------------------------------------------------------
+# 📌 Train Model
+# ----------------------------------------------------------
+model = RandomForestClassifier(n_estimators=200, random_state=42)
+model.fit(X_train, y_train)
+
+print("Model Trained Successfully 🌾")
+
+# ----------------------------------------------------------
+# 📌 Fertilizer Suggestion Logic
+# ----------------------------------------------------------
+fertilizer_data = {
+    "rice": "Urea, DAP, Potash — nitrogen-rich fertilizer chahiye.",
+    "wheat": "NPK 2:1:1 + Urea se accha yield milega.",
+    "maize": "NPK 3:2:1, saath me organic compost / gobar khaad.",
+    "sugarcane": "Ammonium sulphate + potash, zyda pani bhi chahiye.",
+    "cotton": "Phosphorus rich fertilizer + organic manure.",
+    "banana": "High Potassium (K) — MOP + compost.",
+    "apple": "Calcium nitrate + organic khaad.",
+    "coffee": "NPK 15:15:15 + regular compost."
+}
+
+def fertilizer_suggestion(crop):
+    crop = crop.lower()
+    return fertilizer_data.get(
+        crop,
+        "General advice: NPK balanced fertilizer + organic compost use karo."
+    )
+
+# ----------------------------------------------------------
+# 📌 Prediction Function
+# ----------------------------------------------------------
+def recommend_crop(N, P, K, temperature, humidity, ph, rainfall):
+
+    # Input ko model ke format me daalna
+    user_input = [[N, P, K, temperature, humidity, ph, rainfall]]
+
+    predicted_crop = model.predict(user_input)[0]
+    fertilizer = fertilizer_suggestion(predicted_crop)
+
+    output = f"""
+🌾 *Recommended Crop:* {predicted_crop.capitalize()}
+
+🧪 *Fertilizer Suggestion:*
+{fertilizer}
+
+📌 *Your Soil Values:*
+- Nitrogen (N): {N}
+- Phosphorus (P): {P}
+- Potassium (K): {K}
+- Temperature: {temperature} °C
+- Humidity: {humidity} %
+- Soil pH: {ph}
+- Rainfall: {rainfall} mm
+"""
+    return output
+
+# ----------------------------------------------------------
+# 💻 GRADIO UI
+# ----------------------------------------------------------
+interface = gr.Interface(
+    fn=recommend_crop,
+    inputs=[
+        gr.Number(label="N (Nitrogen level)"),
+        gr.Number(label="P (Phosphorus level)"),
+        gr.Number(label="K (Potassium level)"),
+        gr.Number(label="Temperature (°C)"),
+        gr.Number(label="Humidity (%)"),
+        gr.Number(label="Soil pH"),
+        gr.Number(label="Rainfall (mm)"),
+    ],
+    outputs="markdown",
+    title="🌱 Crop Recommendation + Fertilizer Suggestion",
+    description="Enter soil values to get the best crop recommendation and fertilizer advice."
+)
+
+# Colab me web app kholne ke liye
+interface.launch(share=True, debug=True)
